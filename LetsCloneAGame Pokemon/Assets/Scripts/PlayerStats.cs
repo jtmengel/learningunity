@@ -3,100 +3,191 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerStats : MonoBehaviour {
-  // Are exposed in the editor:
-  public Vector3  startPoint;
-  public Vector3  endPoint;
-  public float    speed;
-  public bool     isMoving;
-  public Animator ani;
+  // ***
+  // *** Basic Member Variable Declarations
+  // ***
+  // The ones exposed in the editor:
+  public float mapMovementSpeed;
+  public float randomEncounterOdds = 1;
 
-  // Not exposed in the editor:
-  private float increment;
-  private float tileSize;
-  
+  public GameObject CameraMain;
+  public GameObject CameraCombat;
 
-  // Use this for initialization
-  void Start () {
-    startPoint = transform.position;
-    endPoint   = transform.position;
-    isMoving   = false;
-    tileSize   = 1f;
-    ani = GetComponent<Animator>();
-    ani.enabled = true;
+  // Those not exposed in the editor:
+  // Meta related
+  private bool isMapView;
+  private bool isBattleView;
+
+  // -- MapView & Movement related
+  private Vector3 startMapLocation;
+  private Vector3 endMapLocation;
+  private bool    isMoving;
+  private float   movementIncrement;
+  private float   mapTileSize = 1f;
+  private float   randFightCounter;
+  private float   randFightThreshold;
+  // -- Rendering related
+  private Animator ani;
+
+  // ***
+  // *** Unity/Public functions
+  // ***
+  void Start() { // Use this for initialization
+    // Meta Init
+    isMapView = true;
+    isBattleView = false;
+    // Map Init
+    startMapLocation   = transform.position;
+    endMapLocation     = transform.position;
+    isMoving           = false;
+    ani                = GetComponent<Animator>();
+    ani.enabled        = true;
+    randFightCounter   = 0f;
+    randFightThreshold = Random.Range(5, 25);
+    // Combat Init
+    // --
+    // Menu Init
+    // --
   }
 
-  void SetDirection(string facing) {
+  void Update() { // Update is called once per frame
+    if (isMapView) {
+      DetermineAvatarMovement();
+    } else if (isBattleView) {
+      isMoving = false;
+      UpdateAvatarAnimation("stop");
+    }
+  }
+
+  // ***
+  // *** Private/Utility functions
+  // ***
+  // The ones exposed in the editor:
+  private void UpdateAvatarAnimation(string facing) {
     switch (facing)
     {
-      case "up":
+      case "north":
         ani.SetBool("isMovingNorth", true);
-        ani.SetBool("isMovingEast", false);
+        ani.SetBool("isMovingEast",  false);
         ani.SetBool("isMovingSouth", false);
-        ani.SetBool("isMovingWest", false);
+        ani.SetBool("isMovingWest",  false);
         break;
-      case "left":
+      case "west":
+        ani.SetBool("isMovingWest",  true);
         ani.SetBool("isMovingNorth", false);
-        ani.SetBool("isMovingEast", false);
+        ani.SetBool("isMovingEast",  false);
         ani.SetBool("isMovingSouth", false);
-        ani.SetBool("isMovingWest", true);
         break;
-      case "right":
+      case "east":
+        ani.SetBool("isMovingEast",  true);
         ani.SetBool("isMovingNorth", false);
-        ani.SetBool("isMovingEast", true);
         ani.SetBool("isMovingSouth", false);
-        ani.SetBool("isMovingWest", false);
+        ani.SetBool("isMovingWest",  false);
         break;
-      default:
-        ani.SetBool("isMovingNorth", false);
-        ani.SetBool("isMovingEast", false);
+      case "south":
         ani.SetBool("isMovingSouth", true);
-        ani.SetBool("isMovingWest", false);
+        ani.SetBool("isMovingNorth", false);
+        ani.SetBool("isMovingEast",  false);
+        ani.SetBool("isMovingWest",  false);
+        break;
+      case "start":
+        ani.SetBool("isMoving", true);
+        break;
+      case "stop":
+        ani.SetBool("isMoving", false);
+        break;
+      default: // Default is to stop and face the camera "say whaaaaat?!"
+        ani.SetBool("isMoving",      true);
+        ani.SetBool("isMovingSouth", true);
+        ani.SetBool("isMovingNorth", false);
+        ani.SetBool("isMovingEast",  false);
+        ani.SetBool("isMovingWest",  false);
         break;
     }
   }
 
-  void ApplyMovement(float x, float y, float z) {
-    increment   = 0;
+  private void UpdateAvatarLocation(float x, float y, float z) {
+    movementIncrement   = 0;
     isMoving    = true;
-    ani.SetBool("isMoving", true);
-    startPoint  = transform.position;
-    endPoint    = new Vector3(x, y, z);
+    UpdateAvatarAnimation("start");
+    startMapLocation  = transform.position;
+    endMapLocation    = new Vector3(x, y, z);
   }
 
-  // Update is called once per frame
-  void Update () {
-
-    if (increment <= 1 && isMoving) {
-      Debug.Log("Is Moving");
-      increment += speed / 100;
+  private void DetermineAvatarMovement() {
+    if (movementIncrement <= 1 && isMoving) {
+      movementIncrement += mapMovementSpeed / 100;
     } else {
       isMoving = false;
-      ani.SetBool("isMoving", false);
-      Debug.Log("Stationary");
+      UpdateAvatarAnimation("stop");
     }
 
     if (isMoving) {
-      transform.position = Vector3.Lerp(startPoint, endPoint, increment);
+      transform.position = Vector3.Lerp(startMapLocation, endMapLocation, movementIncrement);
     }
 
-    if( isMoving==false ) {
+    if ( isMoving == false ) {
       float verticalMovement = Input.GetAxis("Vertical");
-      if (verticalMovement > 0) { // Press: w
-        SetDirection("up");
-        ApplyMovement(transform.position.x, transform.position.y, transform.position.z + tileSize);
-      } else if (verticalMovement < 0) { // Press: s
-        SetDirection("down");
-        ApplyMovement(transform.position.x, transform.position.y, transform.position.z - tileSize);
+      if (verticalMovement > 0) { // eg Press: w or uparrow key
+        CalculateWalk();
+        UpdateAvatarAnimation("north");
+        UpdateAvatarLocation(transform.position.x, transform.position.y, transform.position.z + mapTileSize);
+      } else if (verticalMovement < 0) { // eg, Press: s or down arrow key
+        CalculateWalk();
+        UpdateAvatarAnimation("south");
+        UpdateAvatarLocation(transform.position.x, transform.position.y, transform.position.z - mapTileSize);
       } else {
         float horizontalMovement = Input.GetAxis("Horizontal");
-        if (horizontalMovement > 0) { // Press: d
-          SetDirection("right");
-          ApplyMovement(transform.position.x + tileSize, transform.position.y, transform.position.z);
-        } else if (horizontalMovement < 0) { //Press: a
-          SetDirection("left");
-          ApplyMovement(transform.position.x - tileSize, transform.position.y, transform.position.z);
+        if (horizontalMovement > 0) { // eg, Press: d or -> arrow key
+          CalculateWalk();
+          UpdateAvatarAnimation("east");
+          UpdateAvatarLocation(transform.position.x + mapTileSize, transform.position.y, transform.position.z);
+        } else if (horizontalMovement < 0) { //eg, Press: a or <- arrow key
+          CalculateWalk();
+          UpdateAvatarAnimation("west");
+          UpdateAvatarLocation(transform.position.x - mapTileSize, transform.position.y, transform.position.z);
         }
       }
     }
+  }
+
+  private void CalculateWalk() {
+    // if CheckForChallengers(); // Mobs who catch the player Line of Sight and trigger combat
+    // else if 
+    if ( CheckForRandomCombat() ) {
+      GoToCombat();
+    }
+    // else if CheckForTilesEffects(); // Doors, teleporters, plot triggers
+  }
+
+  private bool CheckForRandomCombat() {
+    // Determine if we need to proc some event like battle, challenge, story, etc
+    if ((randFightThreshold * randomEncounterOdds) <= randFightCounter) {
+      randFightThreshold = Random.Range(5, 25);
+      return true;
+    }
+    else {
+      randFightCounter += 1;
+      return false;
+    }
+  }
+
+  private void GoToCombat() {
+    UpdateAvatarAnimation("stop");
+    isBattleView = true;
+    CameraCombat.SetActive(true);
+    CameraMain.SetActive(false);
+    isMapView = false;
+
+    Debug.Log("Something told you to report for CombatView, young whippersnapper...");
+  }
+
+  private void GoToMap() {
+    isMapView = true;
+    CameraMain.SetActive(true);
+    isBattleView = false;
+    CameraCombat.SetActive(false);
+
+    Debug.Log("Something told you to go back to the MapView, young man...");
   }
 }
