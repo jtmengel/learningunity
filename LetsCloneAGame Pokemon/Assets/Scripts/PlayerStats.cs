@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerStats : MonoBehaviour {
-  // ***
+  // *********************************************************
   // *** Basic Member Variable Declarations
-  // ***
+  // *********************************************************
   // The ones exposed in the editor:
   public float mapMovementSpeed;
   public float randomEncounterOdds = 1;
@@ -17,6 +17,7 @@ public class PlayerStats : MonoBehaviour {
   // Meta related
   private bool isMapView;
   private bool isBattleView;
+  private bool isEnteringBattle;
 
   // -- MapView & Movement related
   private Vector3 startMapLocation;
@@ -29,13 +30,14 @@ public class PlayerStats : MonoBehaviour {
   // -- Rendering related
   private Animator ani;
 
-  // ***
+  // *********************************************************************
   // *** Unity/Public functions
-  // ***
+  // *********************************************************************
   void Start() { // Use this for initialization
     // Meta Init
     isMapView = true;
     isBattleView = false;
+    isEnteringBattle = false;
     // Map Init
     startMapLocation   = transform.position;
     endMapLocation     = transform.position;
@@ -55,17 +57,28 @@ public class PlayerStats : MonoBehaviour {
       DetermineAvatarMovement();
     } else if (isBattleView) {
       isMoving = false;
-      UpdateAvatarAnimation("stop");
+      UpdateAvatarAnimation("stationary");
     }
   }
 
-  // ***
+  // ******************************************************************
   // *** Private/Utility functions
-  // ***
+  // ******************************************************************
   // The ones exposed in the editor:
-  private void UpdateAvatarAnimation(string facing) {
-    switch (facing)
-    {
+  private void UpdateAvatarAnimation(string cueAnimationName, string avatarFacingDir = "") {
+    switch (cueAnimationName) {
+      case "walking":
+        ani.SetBool("isMoving", true);
+        break;
+      case "stationary":
+        ani.SetBool("isMoving", false);
+        break;
+      default:
+        ani.SetBool("isMoving", false);
+        break;
+    }
+    switch (avatarFacingDir) {
+      case "": break;
       case "north":
         ani.SetBool("isMovingNorth", true);
         ani.SetBool("isMovingEast",  false);
@@ -90,28 +103,23 @@ public class PlayerStats : MonoBehaviour {
         ani.SetBool("isMovingEast",  false);
         ani.SetBool("isMovingWest",  false);
         break;
-      case "start":
-        ani.SetBool("isMoving", true);
-        break;
-      case "stop":
-        ani.SetBool("isMoving", false);
-        break;
-      default: // Default is to stop and face the camera "say whaaaaat?!"
-        ani.SetBool("isMoving",      true);
+      default:
         ani.SetBool("isMovingSouth", true);
         ani.SetBool("isMovingNorth", false);
-        ani.SetBool("isMovingEast",  false);
-        ani.SetBool("isMovingWest",  false);
+        ani.SetBool("isMovingEast", false);
+        ani.SetBool("isMovingWest", false);
         break;
     }
   }
 
   private void UpdateAvatarLocation(float x, float y, float z) {
+    Vector3 destination = new Vector3(x, y, z);
+    CalculateWalk(destination);
     movementIncrement   = 0;
     isMoving    = true;
-    UpdateAvatarAnimation("start");
+    UpdateAvatarAnimation("walking");
     startMapLocation  = transform.position;
-    endMapLocation    = new Vector3(x, y, z);
+    endMapLocation    = destination;
   }
 
   private void DetermineAvatarMovement() {
@@ -119,61 +127,68 @@ public class PlayerStats : MonoBehaviour {
       movementIncrement += mapMovementSpeed / 100;
     } else {
       isMoving = false;
-      UpdateAvatarAnimation("stop");
+      UpdateAvatarAnimation("stationary");
     }
-
+    
+    // If we are moving, let's resolve the movement
+    // If we're not moving, we can request a move - check for input
     if (isMoving) {
       transform.position = Vector3.Lerp(startMapLocation, endMapLocation, movementIncrement);
-    }
-
-    if ( isMoving == false ) {
+    } else { 
       float verticalMovement = Input.GetAxis("Vertical");
-      if (verticalMovement > 0) { // eg Press: w or uparrow key
-        CalculateWalk();
-        UpdateAvatarAnimation("north");
+      if (verticalMovement > 0) {
+        UpdateAvatarAnimation("walking", "north");
         UpdateAvatarLocation(transform.position.x, transform.position.y, transform.position.z + mapTileSize);
-      } else if (verticalMovement < 0) { // eg, Press: s or down arrow key
-        CalculateWalk();
-        UpdateAvatarAnimation("south");
+      } else if (verticalMovement < 0) {
+        UpdateAvatarAnimation("walking", "south");
         UpdateAvatarLocation(transform.position.x, transform.position.y, transform.position.z - mapTileSize);
       } else {
         float horizontalMovement = Input.GetAxis("Horizontal");
-        if (horizontalMovement > 0) { // eg, Press: d or -> arrow key
-          CalculateWalk();
-          UpdateAvatarAnimation("east");
+        if (horizontalMovement > 0) {
+          UpdateAvatarAnimation("walking", "east");
           UpdateAvatarLocation(transform.position.x + mapTileSize, transform.position.y, transform.position.z);
-        } else if (horizontalMovement < 0) { //eg, Press: a or <- arrow key
-          CalculateWalk();
-          UpdateAvatarAnimation("west");
+        } else if (horizontalMovement < 0) {
+          UpdateAvatarAnimation("walking", "west");
           UpdateAvatarLocation(transform.position.x - mapTileSize, transform.position.y, transform.position.z);
         }
       }
     }
   }
 
-  private void CalculateWalk() {
-    // if CheckForChallengers(); // Mobs who catch the player Line of Sight and trigger combat
-    // else if 
-    if ( CheckForRandomCombat() ) {
+  private void CalculateWalk(Vector3 destination) {
+    CheckForMapEffects(destination);
+
+    if (isEnteringBattle) {
       GoToCombat();
     }
-    // else if CheckForTilesEffects(); // Doors, teleporters, plot triggers
   }
-
-  private bool CheckForRandomCombat() {
-    // Determine if we need to proc some event like battle, challenge, story, etc
-    if ((randFightThreshold * randomEncounterOdds) <= randFightCounter) {
-      randFightThreshold = Random.Range(5, 25);
-      return true;
-    }
-    else {
-      randFightCounter += 1;
-      return false;
+  
+  // Mobs who catch the player Line of Sight and trigger combat
+  // Random Encounters
+  // Doors, teleporters, plot triggers
+  private void CheckForMapEffects(Vector3 destination) {
+    // yield return new WaitForSeconds(0.3f); // TODO we need to figure out to wait on the "enter combat" logic for a moment until we've traversed onto the new tile
+    RaycastHit hitInfo; // What are we standing over
+    if (Physics.Raycast(destination, Vector3.down, out hitInfo, 100f)) {
+      float distanceToGround = hitInfo.distance;
+      
+      switch (hitInfo.collider.gameObject.tag) {
+        case "GrassEncounter":
+          // If we're on a "Wild Tile"
+          if ((randFightThreshold*randomEncounterOdds) <= randFightCounter) {
+            randFightThreshold = Random.Range(5, 25);
+            isEnteringBattle = true;
+          } else {
+            randFightCounter += 1;
+          }
+          break;
+      }
     }
   }
 
   private void GoToCombat() {
-    UpdateAvatarAnimation("stop");
+    UpdateAvatarAnimation("stationary");
+    isEnteringBattle = false;
     isBattleView = true;
     CameraCombat.SetActive(true);
     CameraMain.SetActive(false);

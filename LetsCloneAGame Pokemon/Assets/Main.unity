@@ -354,6 +354,79 @@ MeshFilter:
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 108233382}
   m_Mesh: {fileID: 4300000, guid: 6950ceee8bad70743915e7c413c4682d, type: 2}
+--- !u!1 &127780406
+GameObject:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  serializedVersion: 5
+  m_Component:
+  - component: {fileID: 127780408}
+  - component: {fileID: 127780407}
+  m_Layer: 0
+  m_Name: Main
+  m_TagString: Untagged
+  m_Icon: {fileID: -1412012063857583412, guid: 0000000000000000d000000000000000, type: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &127780407
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 127780406}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af936dde0544de74495d33791b9d86a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Archetypes:
+  - Name: MissngNo
+    PokemonNumber: -1
+    HP: 0
+    Attack: 0
+    SpAttack: 0
+    Defense: 0
+    SpDefense: 0
+    Speed: 0
+    PokemonType: 00000000
+    HPNow: 0
+    AttackNow: 0
+    SpAttackNow: 0
+    DefenseNow: 0
+    SpDefenseNow: 0
+    SpeedNow: 0
+    CurrentCondition: 
+  - Name: MissngNo
+    PokemonNumber: -1
+    HP: 0
+    Attack: 0
+    SpAttack: 0
+    Defense: 0
+    SpDefense: 0
+    Speed: 0
+    PokemonType: 
+    HPNow: 0
+    AttackNow: 0
+    SpAttackNow: 0
+    DefenseNow: 0
+    SpDefenseNow: 0
+    SpeedNow: 0
+    CurrentCondition: 
+--- !u!4 &127780408
+Transform:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 127780406}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -1.0735669, y: 2.1640625, z: 0.38774633}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 4
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &130103965
 GameObject:
   m_ObjectHideFlags: 0
@@ -4624,8 +4697,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a388309fade0e347a09dc894739d3a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mapMovementSpeed: 5
-  randomEncounterOdds: 1
+  mapMovementSpeed: 9
+  randomEncounterOdds: 0.1
   CameraMain: {fileID: 1445838631}
   CameraCombat: {fileID: 1472316990}
 --- !u!95 &1408842235
