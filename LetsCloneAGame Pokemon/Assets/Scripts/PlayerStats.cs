@@ -2,13 +2,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum MovementDefinitions {
+  North, East, South, West,
+  Walking, Stationary,
+  NoChange
+}
+
 public class PlayerStats : MonoBehaviour {
   // *********************************************************
   // *** Basic Member Variable Declarations
   // *********************************************************
   // The ones exposed in the editor:
   public float mapMovementSpeed;
-  public float randomEncounterOdds = 1;
+  public float randomBaddleOdds = 1;
 
   public GameObject CameraMain;
   public GameObject CameraCombat;
@@ -20,13 +26,17 @@ public class PlayerStats : MonoBehaviour {
   private bool isEnteringBattle;
 
   // -- MapView & Movement related
-  private Vector3 startMapLocation;
-  private Vector3 endMapLocation;
+  private Vector3 confirmedOrigin;
+  private Vector3 confirmedDestination;
   private bool    isMoving;
-  private float   movementIncrement;
+  private float   movementLerpPercent;
   private float   mapTileSize = 1f;
-  private float   randFightCounter;
-  private float   randFightThreshold;
+  private float   randomBattleFuse;
+  private float   randomBattleThreshold;
+
+  // "momentum" and "blocked" are tie-breaker tools for simultaneous inputs
+  private MovementDefinitions moveMomentum;
+  private MovementDefinitions moveBlocked;
   // -- Rendering related
   private Animator ani;
 
@@ -39,25 +49,24 @@ public class PlayerStats : MonoBehaviour {
     isBattleView = false;
     isEnteringBattle = false;
     // Map Init
-    startMapLocation   = transform.position;
-    endMapLocation     = transform.position;
+    confirmedOrigin   = transform.position;
+    confirmedDestination     = transform.position;
     isMoving           = false;
     ani                = GetComponent<Animator>();
     ani.enabled        = true;
-    randFightCounter   = 0f;
-    randFightThreshold = Random.Range(5, 25);
-    // Combat Init
-    // --
-    // Menu Init
-    // --
+    randomBattleFuse   = 0f;
+    randomBattleThreshold = Random.Range(5, 25);
+    ani.SetInteger("MovementSpeed", int.Parse(mapMovementSpeed.ToString()));
+    moveMomentum = MovementDefinitions.NoChange;
+    moveBlocked  = MovementDefinitions.NoChange;
   }
 
   void Update() { // Update is called once per frame
     if (isMapView) {
       DetermineAvatarMovement();
-    } else if (isBattleView) {
+    } else if (isBattleView && isMoving) {
       isMoving = false;
-      UpdateAvatarAnimation("stationary");
+      UpdateAvatarAnimation(MovementDefinitions.Stationary);
     }
   }
 
@@ -65,39 +74,41 @@ public class PlayerStats : MonoBehaviour {
   // *** Private/Utility functions
   // ******************************************************************
   // The ones exposed in the editor:
-  private void UpdateAvatarAnimation(string cueAnimationName, string avatarFacingDir = "") {
+  private void UpdateAvatarAnimation( MovementDefinitions cueAnimationName, 
+                                      MovementDefinitions avatarFacingDir = MovementDefinitions.NoChange ) {
+    Debug.Log(string.Format("UpdateAvatarAnimation called {0} {1}", cueAnimationName, avatarFacingDir));
     switch (cueAnimationName) {
-      case "walking":
-        ani.SetBool("isMoving", true);
+      case MovementDefinitions.Walking:
+        ani.SetBool("isWalking", true);
         break;
-      case "stationary":
-        ani.SetBool("isMoving", false);
+      case MovementDefinitions.Stationary:
+        ani.SetBool("isWalking", false);
         break;
       default:
-        ani.SetBool("isMoving", false);
+        ani.SetBool("isWalking", false);
         break;
     }
     switch (avatarFacingDir) {
-      case "": break;
-      case "north":
+      case MovementDefinitions.NoChange: break;
+      case MovementDefinitions.North:
         ani.SetBool("isMovingNorth", true);
         ani.SetBool("isMovingEast",  false);
         ani.SetBool("isMovingSouth", false);
         ani.SetBool("isMovingWest",  false);
         break;
-      case "west":
+      case MovementDefinitions.West:
         ani.SetBool("isMovingWest",  true);
         ani.SetBool("isMovingNorth", false);
         ani.SetBool("isMovingEast",  false);
         ani.SetBool("isMovingSouth", false);
         break;
-      case "east":
+      case MovementDefinitions.East:
         ani.SetBool("isMovingEast",  true);
         ani.SetBool("isMovingNorth", false);
         ani.SetBool("isMovingSouth", false);
         ani.SetBool("isMovingWest",  false);
         break;
-      case "south":
+      case MovementDefinitions.South:
         ani.SetBool("isMovingSouth", true);
         ani.SetBool("isMovingNorth", false);
         ani.SetBool("isMovingEast",  false);
@@ -112,82 +123,107 @@ public class PlayerStats : MonoBehaviour {
     }
   }
 
-  private void UpdateAvatarLocation(float x, float y, float z) {
-    Vector3 destination = new Vector3(x, y, z);
-    CalculateWalk(destination);
-    movementIncrement   = 0;
-    isMoving    = true;
-    UpdateAvatarAnimation("walking");
-    startMapLocation  = transform.position;
-    endMapLocation    = destination;
+  // TODO this section is hacky AF to make movement input a little more graceful
+  // this code could be 30% lighter if we just constructed some kind of domain lang/objects
+  public bool GetPlayerMoveInput(out Vector3 requestedChange, out MovementDefinitions dir) {
+    requestedChange = new Vector3();
+    dir             = MovementDefinitions.NoChange;
+
+    float verticalMovement   = Input.GetAxis("Vertical");
+    float horizontalMovement = Input.GetAxis("Horizontal");
+
+    if ((moveBlocked != MovementDefinitions.North) && verticalMovement > 0) {
+      requestedChange = new Vector3(transform.position.x, transform.position.y, transform.position.z + mapTileSize);
+      dir = MovementDefinitions.North;
+      return true;
+    } else if ((moveBlocked != MovementDefinitions.South) && verticalMovement < 0) {
+      requestedChange = new Vector3(transform.position.x, transform.position.y, transform.position.z - mapTileSize);
+      dir = MovementDefinitions.South;
+      return true;
+    } else if ((moveBlocked != MovementDefinitions.East) && horizontalMovement > 0) {
+      requestedChange = new Vector3(transform.position.x + mapTileSize, transform.position.y, transform.position.z);
+      dir = MovementDefinitions.East;
+      return true;
+    } else if ((moveBlocked != MovementDefinitions.West) && horizontalMovement < 0) {
+      requestedChange = new Vector3(transform.position.x - mapTileSize, transform.position.y, transform.position.z);
+      dir = MovementDefinitions.West;
+      return true;
+    }
+    return false;
   }
 
   private void DetermineAvatarMovement() {
-    if (movementIncrement <= 1 && isMoving) {
-      movementIncrement += mapMovementSpeed / 100;
-    } else {
-      isMoving = false;
-      UpdateAvatarAnimation("stationary");
-    }
-    
-    // If we are moving, let's resolve the movement
-    // If we're not moving, we can request a move - check for input
+    // We want to complete any movement we've started, and if we're fully 
+    //   on a tile we want to either wait for or process the next move
     if (isMoving) {
-      transform.position = Vector3.Lerp(startMapLocation, endMapLocation, movementIncrement);
-    } else { 
-      float verticalMovement = Input.GetAxis("Vertical");
-      if (verticalMovement > 0) {
-        UpdateAvatarAnimation("walking", "north");
-        UpdateAvatarLocation(transform.position.x, transform.position.y, transform.position.z + mapTileSize);
-      } else if (verticalMovement < 0) {
-        UpdateAvatarAnimation("walking", "south");
-        UpdateAvatarLocation(transform.position.x, transform.position.y, transform.position.z - mapTileSize);
+      if (movementLerpPercent <= 1) {
+        movementLerpPercent += mapMovementSpeed / 100;
       } else {
-        float horizontalMovement = Input.GetAxis("Horizontal");
-        if (horizontalMovement > 0) {
-          UpdateAvatarAnimation("walking", "east");
-          UpdateAvatarLocation(transform.position.x + mapTileSize, transform.position.y, transform.position.z);
-        } else if (horizontalMovement < 0) {
-          UpdateAvatarAnimation("walking", "west");
-          UpdateAvatarLocation(transform.position.x - mapTileSize, transform.position.y, transform.position.z);
-        }
+        isMoving = false;
+        UpdateAvatarAnimation(MovementDefinitions.Stationary);
+      }
+      // Continue resolving an outstanding tile move
+      transform.position = Vector3.Lerp(confirmedOrigin, confirmedDestination, movementLerpPercent);
+    } else if (isMapView) {
+      Vector3 requestedDest; // Decide if the player wants to move (to requestedDest)
+      MovementDefinitions moveDir;
+
+      if ( GetPlayerMoveInput(out requestedDest, out moveDir) ) {
+        Vector3 origin = transform.position;
+        ResolveWalkRequest(origin, requestedDest, moveDir);
       }
     }
   }
 
-  private void CalculateWalk(Vector3 destination) {
-    CheckForMapEffects(destination);
+  // This function is only called when there's a change in the avatar's Tile
+  private void ConfirmWalkTo(Vector3 start, Vector3 end, MovementDefinitions moveDir) {
+    isMoving             = true;
+    moveMomentum         = moveDir;
+    moveBlocked          = MovementDefinitions.NoChange;
+    confirmedOrigin      = start;
+    confirmedDestination = end;
+    movementLerpPercent  = 0;
+    UpdateAvatarAnimation(MovementDefinitions.Walking, moveDir);
+  }
+
+  private void ResolveWalkRequest(Vector3 candidateOrigin, Vector3 candidateDest, MovementDefinitions moveDir) {
+    RaycastHit requestedTileHit; // What we have been directed to face
+    //RaycastHit currentTileHit; // What are we standing over
+    Vector3 inputDir = (candidateDest -  candidateOrigin).normalized;
+
+    if ((Physics.Raycast(candidateOrigin, inputDir,     out requestedTileHit, 1f))/* && 
+        (Physics.Raycast(candidateDest,   Vector3.down, out currentTileHit,   2f))*/ ){
+      switch (requestedTileHit.collider.gameObject.tag) { // Checking ONLY where we're going ATM
+        case "Untraversable": // Is this a wall/tree/water?
+          UpdateAvatarAnimation(MovementDefinitions.Stationary, moveDir);
+          moveMomentum = MovementDefinitions.NoChange;
+          moveBlocked  = moveDir;
+          break;
+        case "Traversable": // Animate the Avatar facing and walking that direction, move to the destination
+          ConfirmWalkTo(candidateOrigin, candidateDest, moveDir);
+          break;
+        case "TraversableRandomEncounter": // Am I moving into a "GrassEncounter"?
+          ConfirmWalkTo(candidateOrigin, candidateDest, moveDir);
+          if ((randomBattleThreshold / randomBaddleOdds) > randomBattleFuse) randomBattleFuse += 1;
+          else {
+            randomBattleThreshold = Random.Range(5, 25);
+            isEnteringBattle = true;
+          }
+          break;
+      }
+    } else { // DEFAULT - face the "mysterious" tile
+      UpdateAvatarAnimation(MovementDefinitions.Stationary, moveDir);
+      moveMomentum = MovementDefinitions.NoChange;
+      moveBlocked = moveDir;
+    }
 
     if (isEnteringBattle) {
       GoToCombat();
     }
   }
-  
-  // Mobs who catch the player Line of Sight and trigger combat
-  // Random Encounters
-  // Doors, teleporters, plot triggers
-  private void CheckForMapEffects(Vector3 destination) {
-    // yield return new WaitForSeconds(0.3f); // TODO we need to figure out to wait on the "enter combat" logic for a moment until we've traversed onto the new tile
-    RaycastHit hitInfo; // What are we standing over
-    if (Physics.Raycast(destination, Vector3.down, out hitInfo, 100f)) {
-      float distanceToGround = hitInfo.distance;
-      
-      switch (hitInfo.collider.gameObject.tag) {
-        case "GrassEncounter":
-          // If we're on a "Wild Tile"
-          if ((randFightThreshold*randomEncounterOdds) <= randFightCounter) {
-            randFightThreshold = Random.Range(5, 25);
-            isEnteringBattle = true;
-          } else {
-            randFightCounter += 1;
-          }
-          break;
-      }
-    }
-  }
 
   private void GoToCombat() {
-    UpdateAvatarAnimation("stationary");
+    UpdateAvatarAnimation(MovementDefinitions.Stationary);
     isEnteringBattle = false;
     isBattleView = true;
     CameraCombat.SetActive(true);
