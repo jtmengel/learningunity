@@ -25617,7 +25617,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0a388309fade0e347a09dc894739d3a3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mapMovementSpeed: 7
+  mapMovementSpeed: 8.4
   randomBaddleOdds: 1
   CameraMain: {fileID: 1445838631}
   CameraCombat: {fileID: 1472316990}
@@ -25631,7 +25631,7 @@ Animator:
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 4e322728bbd0cd64882fa0a44485c43f, type: 2}
-  m_CullingMode: 0
+  m_CullingMode: 1
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
   m_LinearVelocityBlending: 0
@@ -37073,7 +37073,7 @@ GameObject:
   - component: {fileID: 1925248780}
   m_Layer: 0
   m_Name: caveEntrance01
-  m_TagString: Untraversable
+  m_TagString: TraversablePortal
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

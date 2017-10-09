@@ -28,11 +28,12 @@ public class PlayerStats : MonoBehaviour {
   // -- MapView & Movement related
   private Vector3 confirmedOrigin;
   private Vector3 confirmedDestination;
-  private bool    isMoving;
-  private float   movementLerpPercent;
-  private float   mapTileSize = 1f;
-  private float   randomBattleFuse;
-  private float   randomBattleThreshold;
+  private bool isMoving;
+  private bool freezePlayerInput;
+  private float movementLerpPercent;
+  private float mapTileSize = 1f;
+  private float randomBattleFuse;
+  private float randomBattleThreshold;
 
   // "momentum" and "blocked" are tie-breaker tools for simultaneous inputs
   private MovementDefinitions moveMomentum;
@@ -48,17 +49,19 @@ public class PlayerStats : MonoBehaviour {
     isMapView = true;
     isBattleView = false;
     isEnteringBattle = false;
+    freezePlayerInput = false;
     // Map Init
-    confirmedOrigin   = transform.position;
-    confirmedDestination     = transform.position;
-    isMoving           = false;
-    ani                = GetComponent<Animator>();
-    ani.enabled        = true;
-    randomBattleFuse   = 0f;
+    confirmedOrigin = transform.position;
+    confirmedDestination = transform.position;
+    isMoving = false;
+    randomBattleFuse = 0f;
     randomBattleThreshold = Random.Range(5, 25);
-    ani.SetInteger("MovementSpeed", int.Parse(mapMovementSpeed.ToString()));
+    // Avatar Animation Init
+    ani = GetComponent<Animator>();
+    ani.enabled = true;
     moveMomentum = MovementDefinitions.NoChange;
     moveBlocked  = MovementDefinitions.NoChange;
+    ani.SetInteger("MovementSpeed", int.Parse(mapMovementSpeed.ToString()));
   }
 
   void Update() { // Update is called once per frame
@@ -76,7 +79,6 @@ public class PlayerStats : MonoBehaviour {
   // The ones exposed in the editor:
   private void UpdateAvatarAnimation( MovementDefinitions cueAnimationName, 
                                       MovementDefinitions avatarFacingDir = MovementDefinitions.NoChange ) {
-    Debug.Log(string.Format("UpdateAvatarAnimation called {0} {1}", cueAnimationName, avatarFacingDir));
     switch (cueAnimationName) {
       case MovementDefinitions.Walking:
         ani.SetBool("isWalking", true);
@@ -160,7 +162,6 @@ public class PlayerStats : MonoBehaviour {
         movementLerpPercent += mapMovementSpeed / 100;
       } else {
         isMoving = false;
-        UpdateAvatarAnimation(MovementDefinitions.Stationary);
       }
       // Continue resolving an outstanding tile move
       transform.position = Vector3.Lerp(confirmedOrigin, confirmedDestination, movementLerpPercent);
@@ -171,6 +172,8 @@ public class PlayerStats : MonoBehaviour {
       if ( GetPlayerMoveInput(out requestedDest, out moveDir) ) {
         Vector3 origin = transform.position;
         ResolveWalkRequest(origin, requestedDest, moveDir);
+      } else {
+        UpdateAvatarAnimation(MovementDefinitions.Stationary);
       }
     }
   }
@@ -202,6 +205,10 @@ public class PlayerStats : MonoBehaviour {
         case "Traversable": // Animate the Avatar facing and walking that direction, move to the destination
           ConfirmWalkTo(candidateOrigin, candidateDest, moveDir);
           break;
+        case "TraversablePortal": // Animate the Avatar facing and walking that direction, move to the destination, and then teleport
+          ConfirmWalkTo(candidateOrigin, candidateDest, moveDir);
+
+          break;
         case "TraversableRandomEncounter": // Am I moving into a "GrassEncounter"?
           ConfirmWalkTo(candidateOrigin, candidateDest, moveDir);
           if ((randomBattleThreshold / randomBaddleOdds) > randomBattleFuse) randomBattleFuse += 1;
@@ -229,8 +236,6 @@ public class PlayerStats : MonoBehaviour {
     CameraCombat.SetActive(true);
     CameraMain.SetActive(false);
     isMapView = false;
-
-    Debug.Log("Something told you to report for CombatView, young whippersnapper...");
   }
 
   private void GoToMap() {
@@ -238,7 +243,5 @@ public class PlayerStats : MonoBehaviour {
     CameraMain.SetActive(true);
     isBattleView = false;
     CameraCombat.SetActive(false);
-
-    Debug.Log("Something told you to go back to the MapView, young man...");
   }
 }
