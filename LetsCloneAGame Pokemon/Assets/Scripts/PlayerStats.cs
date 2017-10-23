@@ -61,7 +61,9 @@ public class PlayerStats : MonoBehaviour {
     ani.enabled = true;
     moveMomentum = MovementDefinitions.NoChange;
     moveBlocked  = MovementDefinitions.NoChange;
-    ani.SetInteger("MovementSpeed", int.Parse(mapMovementSpeed.ToString()));
+    /*int setMoveSpeed;
+    int.TryParse(mapMovementSpeed, out setMoveSpeed);
+    ani.SetInteger("MovementSpeed", setMoveSpeed);*/
   }
 
   void Update() { // Update is called once per frame
